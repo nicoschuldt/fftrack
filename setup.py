@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='fftrack',
-    version='0.1.4',
+    version='{{VERSION_PLACEHOLDER}}',
     description='FFTrack is a Python-based music recognition tool that allows users to identify songs from audio input.',
     author='schuldt-ogre <nschuldt@ogre.run>',
     packages=find_packages(),
