@@ -1,0 +1,24 @@
+# Byte-compiled files
+__pycache__/
+*.py[cod]
+
+# Log files
+*.log
+
+# Local configuration files
+*.cfg
+*.ini
+
+# Build and distribution directories
+build/
+dist/
+*.egg-info/
+
+# Virtual environment directory
+venv/
+
+# IDE project files
+.idea/
+.vscode/
+*.swp
+*.swo

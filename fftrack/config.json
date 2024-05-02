@@ -1,0 +1,23 @@
+{
+    "database_url": "sqlite:///fftrack.db",
+    "listen_time": "5",
+    "plot": false,
+    "log_level": "INFO",
+    "audio": {
+        "rate": 44100,
+        "window_size": 4096,
+        "overlap_ratio": 0.5,
+        "fan_value": 15,
+        "amp_min": 10,
+        "peak_neighborhood_size": 20,
+        "fingerprint_reduction": 20,
+        "max_hash_time_delta": 200,
+        "min_hash_time_delta": 0,
+        "peak_sort": true
+    },
+    "matching": {
+
+    }
+
+
+}
