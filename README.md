@@ -15,13 +15,10 @@ To install FFTrack, follow these steps:
 1. Clone the repository to your local machine:
 2. Install the package using the following command:
 ```
-pip install .
+pip install fftrack
 ```
-3. Install the required dependencies using the following command:
-```
-pip install -r requirements.txt
-```
-4. Verify the installation by running the following command:
+
+3. Verify the installation by running the following command:
 ```
 fftrack --help
 ```
