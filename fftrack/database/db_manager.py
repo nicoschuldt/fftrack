@@ -2,6 +2,7 @@ from datetime import datetime
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import and_
 
 from .models import engine, Song, Fingerprint
 
@@ -43,8 +44,10 @@ class DatabaseManager:
             # Convert release_date from string to date object if release_date
             # is not None
             if release_date:
-                release_date = datetime.strptime(release_date,
-                                                 "%Y-%m-%d").date()
+                try:
+                    release_date = datetime.strptime(release_date,"%Y-%m-%d").date()
+                except ValueError:
+                    release_date = None
 
             new_song = Song(title=title, artist=artist, album=album,
                             release_date=release_date, youtube_link=youtube_link)
@@ -73,6 +76,71 @@ class DatabaseManager:
         except SQLAlchemyError as e:
             print(f"Error retrieving song from database: {e}")
             return None
+
+    def get_song_by_title_artist(self, title, artist):
+        """
+        Gets a song by its title, and its artist.
+
+        Parameters:
+            title (string): The title of the song to retrieve.
+            artist (string): The artist of the song to retrieve.
+
+        Returns:
+            Song: The Song object if found, None otherwise.
+        """
+        try:
+            song = self.session.query(Song).filter(and_(Song.title == title, Song.artist == artist)).first()
+            return song
+        except SQLAlchemyError as e:
+            print(f"Error retrieving song from database: {e}")
+            return None
+
+    def get_all_songs(self):
+        """
+        Gets all songs from the database.
+
+        Returns:
+            list: A list of Song objects.
+        """
+        try:
+            songs = self.session.query(Song).all()
+            return songs
+        except SQLAlchemyError as e:
+            print(f"Error retrieving songs from database: {e}")
+            return []
+
+    def delete_song(self, song_id):
+        """
+        Deletes a song and its fingerprints from the database.
+
+        Parameters:
+            song_id (int): The ID of the song to delete.
+
+        Returns:
+            bool: True if the song was deleted successfully, False otherwise.
+        """
+        try:
+            song = self.session.query(Song).filter(Song.song_id == song_id).first()
+
+            if song:
+                # delete fingerprints associated with the song
+                fingerprints = self.session.query(Fingerprint).filter(Fingerprint.song_id == song_id).all()
+                for fingerprint in fingerprints:
+                    self.session.delete(fingerprint)
+                self.session.commit()
+                self.session.delete(song)
+                self.session.commit()
+
+                return True
+
+            else:
+                return False
+
+        except SQLAlchemyError as e:
+            self.session.rollback()
+            print(f"Error deleting song from database: {e}")
+            return False
+
 
     def add_fingerprint(self, song_id, hex_fingerprint, offset):
         """

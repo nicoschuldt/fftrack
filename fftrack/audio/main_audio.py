@@ -1,4 +1,4 @@
-# Demo for how to use the processing_audio unit
+# Demo for how to use the audio unit
 from audio_reader import AudioReader
 from audio_processing import AudioProcessing
 import time
@@ -10,8 +10,8 @@ def main():
     audio_reader = AudioReader()
     audio_processor = AudioProcessing()
 
-    # 2 Get audio from the user :
 
+    # 2 Get audio from the user :
     if input("Would you like to record audio from the microphone? (y/n): ") == "y":
         # 2.1 Record audio from microphone
         print("Recording audio...")
@@ -25,9 +25,11 @@ def main():
         path = input("Please provide the path to an audio file: ")
         audio_reader.audio_to_wav(path)
 
+
     # 3. Process the audio file
     print("Processing audio...")
     fingerprints = audio_processor.generate_fingerprints_from_file(audio_reader.output_filename)
+
 
     # 4. Print the fingerprints
     print("Fingerprints:")

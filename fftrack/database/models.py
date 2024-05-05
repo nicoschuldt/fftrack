@@ -9,22 +9,15 @@ Base = declarative_base()
 class Song(Base):
     """
     Represents a song in the database.
-
-    Attributes:
-        song_id: A unique identifier for the song.
-        title: The title of the song.
-        artist: The artist or band who performed the song.
-        album: The album on which the song appears.
-        release_date: The release date of the song.
     """
     __tablename__ = 'songs'
 
-    song_id = Column(Integer, primary_key=True)
-    title = Column(String, nullable=False)
-    artist = Column(String, nullable=False)
-    album = Column(String)
-    release_date = Column(Date)
-    youtube_link = Column(String)
+    song_id = Column(Integer, primary_key=True)  # A unique identifier for the song.
+    title = Column(String, nullable=False)  # The title of the song.
+    artist = Column(String, nullable=False)  # The artist or band who performed the song.
+    album = Column(String)  # The album on which the song appears.
+    release_date = Column(Date, nullable=True)  # The release date of the song.
+    youtube_link = Column(String)  # YouTube link of the song.
 
     fingerprints = relationship('Fingerprint', back_populates='song')
 
@@ -32,11 +25,6 @@ class Song(Base):
 class Fingerprint(Base):
     """
     Represents an audio fingerprint in the database.
-
-    Attributes:
-        fingerprint_id: A unique identifier for the fingerprint.
-        song_id: The ID of the song this fingerprint belongs to.
-        fingerprint: The fingerprint data.
     """
     __tablename__ = 'fingerprints'
     __table_args__ = (
@@ -44,8 +32,9 @@ class Fingerprint(Base):
         Index('idx_song_hash', 'hash'),
     )
 
-    fingerprint_id = Column(Integer, primary_key=True)
-    song_id = Column(Integer, ForeignKey('songs.song_id'), nullable=False)
+    fingerprint_id = Column(Integer, primary_key=True)  # A unique identifier for the fingerprint.
+    song_id = Column(Integer, ForeignKey('songs.song_id'), nullable=False)  # The ID of the song this fingerprint belongs to.
+    # One fingerprint (hash and offset) of the song.
     hash = Column(String(20), nullable=False, index=True)
     offset = Column(Integer, nullable=False)
 

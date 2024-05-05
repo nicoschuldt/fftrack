@@ -8,20 +8,25 @@ from matplotlib.mlab import window_hanning, specgram
 from scipy.ndimage import maximum_filter, binary_erosion, generate_binary_structure, iterate_structure
 from pydub import AudioSegment
 
+from fftrack import config as cfg
+
+
 # config
+config = cfg.load_config()
 
 
 # Constants for fingerprinting
-DEFAULT_FS = 44100  # Sampling rate
-DEFAULT_WINDOW_SIZE = 4096  # Size of the FFT window
-DEFAULT_OVERLAP_RATIO = 0.5  # Overlap ratio for FFT
-DEFAULT_FAN_VALUE = 15  # Degree for pairing peaks in fingerprinting
-DEFAULT_AMP_MIN = 10  # Minimum amplitude in spectrogram for considering a peak
-PEAK_NEIGHBORHOOD_SIZE = 20  # Size of the neighborhood around a peak
-FINGERPRINT_REDUCTION = 20  # Reduction in fingerprint to trim hash value size
-MAX_HASH_TIME_DELTA = 200  # Max time delta between peaks in a hash
-MIN_HASH_TIME_DELTA = 0  # Min time delta between peaks in a hash
-PEAK_SORT = True  # Whether to sort peaks for hashing
+DEFAULT_FS = config["audio"]["rate"]  # Sampling rate
+DEFAULT_WINDOW_SIZE = config["audio"]["window_size"]  # Size of the FFT window
+DEFAULT_OVERLAP_RATIO = config["audio"]["overlap_ratio"]  # Overlap ratio for FFT
+DEFAULT_FAN_VALUE = config["audio"]["fan_value"]  # Degree for pairing peaks in fingerprinting
+DEFAULT_AMP_MIN = config["audio"]["amp_min"]  # Minimum amplitude in spectrogram for considering a peak
+PEAK_NEIGHBORHOOD_SIZE = config["audio"]["peak_neighborhood_size"]  # Size of the neighborhood around a peak
+FINGERPRINT_REDUCTION = config["audio"]["fingerprint_reduction"]  # Reduction in fingerprint to trim hash value size
+MAX_HASH_TIME_DELTA = config["audio"]["max_hash_time_delta"]  # Max time delta between peaks in a hash
+MIN_HASH_TIME_DELTA = config["audio"]["min_hash_time_delta"]  # Min time delta between peaks in a hash
+PEAK_SORT = config["audio"]["peak_sort"]  # Whether to sort peaks for hashing
+
 
 # Flags for plotting and logging
 PLOT = False
@@ -52,24 +57,24 @@ class AudioProcessing:
         self.sort_peaks = peak_sort
         self.plot = plot
 
+
     def load_audio_file(self, file_path):
         """
         Load an audio file as a floating point time series.
 
         Args:
             file_path (str): Path to the audio file.
-
         Returns:
-            np.ndarray: Audio samples as a 1D numpy array.
-            int: Sampling rate of the audio file.
+            samples (np.ndarray): Audio samples as a 1D numpy array.
+            fs (int): Sampling rate of the audio file.
         """
+
         logging.info(f"Loading audio file: {file_path}")
         audio = AudioSegment.from_file(file_path)
         mono_audio = audio.set_channels(1)
         normalized_audio = mono_audio.apply_gain(-mono_audio.dBFS)
         samples = np.array(normalized_audio.get_array_of_samples(), dtype=np.float32)
         rate = mono_audio.frame_rate
-
 
         # Resample the audio to the target sample rate
         if rate != self.fs:
@@ -79,10 +84,16 @@ class AudioProcessing:
 
         return samples, self.fs
 
+
     def generate_spectrogram(self, samples):
         """
         Generate a spectrogram from the audio samples.
+
+        Args:
+            samples (np.ndarray): Audio samples as a 1D numpy array.
+        Returns: the spectrogram.
         """
+
         logging.info("Generating Spectrogram.")
 
         # Generate the spectrogram using the short-time Fourier transform (STFT)
@@ -90,9 +101,12 @@ class AudioProcessing:
         # The overlap ratio is the fraction of overlap between consecutive windows
         return specgram(samples, NFFT=self.window_size, Fs=self.fs, window=window_hanning,
                         noverlap=int(self.window_size * self.overlap_ratio))[0]
+
+
     def find_peaks(self, spectrogram_2d):
         """
         Find peaks in the 2D array of the spectrogram.
+
         Args:
             spectrogram_2d (np.ndarray): 2D array of the spectrogram.
         Returns:
@@ -100,7 +114,8 @@ class AudioProcessing:
         """
 
         logging.info("Finding Peaks.")
-        # The binary stucture defines how the neighborhood of each element should be calculated
+
+        # The binary structure defines how the neighborhood of each element should be calculated
         struct = generate_binary_structure(2, 1)  # connectivity: 1 for direct connection, 2 for diagonal
         # The neighborhood is iterated to find the maximum value in the neighborhood
         neighborhood = iterate_structure(struct, self.peak_neighborhood_size)
@@ -110,7 +125,7 @@ class AudioProcessing:
         background = (spectrogram_2d == 0)
 
         # Erode the background to find the peaks, erosion means that the value of the pixel is set to 1 if all the
-        # elemetns in the neighborhood are 1, otherwise it is set to 0
+        # elements in the neighborhood are 1, otherwise it is set to 0
         # this is used to remove the background from the local maximum
         eroded_background = binary_erosion(background, structure=neighborhood, border_value=1)
 
@@ -129,15 +144,19 @@ class AudioProcessing:
 
         return list(zip(freq_indices_filter, time_indices_filter))
 
+
     def generate_fingerprints_from_peaks(self, peaks):
         """
         Generate hashes from the peaks.
+
         Args:
             peaks (list): Peaks in the format [(frequency, time), ...].
         Returns:
-            list: A list of hashes representing the audio fingerprint.
+            hashes (list): A list of hashes representing the audio fingerprint.
         """
+
         logging.info("Generating Fingerprints.")
+
         if self.sort_peaks:
             peaks.sort(key=lambda x: x[1])
 
@@ -149,17 +168,22 @@ class AudioProcessing:
                     freq2, t2 = peaks[j + i]
                     t_delta = t2 - t1
 
-                    if MIN_HASH_TIME_DELTA <= t_delta <= MAX_HASH_TIME_DELTA:
+                    if self.min_hash_time_delta <= t_delta <= self.max_hash_time_delta:
                         h = hashlib.sha1(f"{freq1}|{freq2}|{t_delta}".encode('utf-8'))
-                        hashes.append((h.hexdigest()[0:FINGERPRINT_REDUCTION], int(t1)))
+                        hashes.append((h.hexdigest()[0:self.fingerprint_reduction], int(t1)))
 
         return hashes
+
 
     @staticmethod
     def plot_peaks(peaks):
         """
         Plot the peaks on the spectrogram.
+
+        Args:
+            peaks (list): Peaks in the format [(frequency, time), ...].
         """
+
         fig, ax = plt.subplots()
         ax.scatter([p[0] for p in peaks], [p[1] for p in peaks], s=1)
         ax.set_xlabel('Time')
@@ -167,16 +191,17 @@ class AudioProcessing:
         ax.set_title('Peaks in Spectrogram')
         plt.show()
 
+
     def generate_fingerprints_from_samples(self, samples):
         """
         Full audio processing pipeline: generate spectrogram, find peaks, and generate hashes.
 
         Args:
             samples (np.ndarray): Audio samples as a 1D numpy array.
-
         Returns:
-            list: A list of hashes representing the audio fingerprint.
+            fingerprints (list): A list of hashes representing the audio fingerprint.
         """
+
         spectrogram = self.generate_spectrogram(samples)
 
         # Convert the spectrogram to decibels to compress the range of values and make it easier to find peaks
@@ -184,8 +209,11 @@ class AudioProcessing:
         # log spectrogram
 
         peaks = self.find_peaks(spectrogram)
+
         logging.info(f"Found {len(peaks)} peaks. Peaks: {peaks[:10]}")
+
         fingerprints = self.generate_fingerprints_from_peaks(peaks)
+
         return fingerprints
 
 
@@ -195,12 +223,13 @@ class AudioProcessing:
 
         Args:
             file_path (str): Path to the audio file.
-
         Returns:
             list: A list of hashes representing the audio fingerprint.
         """
         samples, rate = self.load_audio_file(file_path)
+
         return self.generate_fingerprints_from_samples(samples)
+
 
     def crop_samples(self, samples, start_time, end_time):
         """
@@ -210,17 +239,28 @@ class AudioProcessing:
             samples (np.ndarray): Audio samples.
             start_time (float): Start time in seconds.
             end_time (float): End time in seconds.
-
         Returns:
             np.ndarray: Cropped audio samples.
         """
+
         start_index = int(start_time * self.fs)
         end_index = int(end_time * self.fs)
+
         return samples[start_index:end_index]
 
 
     def offset_to_seconds(self, offset):
-        hop_size = DEFAULT_WINDOW_SIZE * (1 - self.overlap_ratio)
+        """
+        Transforms offset into seconds.
+
+        Args:
+            offset (int): Offset of the hash, from the beginning of the audio (query or database).
+        Returns:
+            offset_in_seconds (float): The offset in seconds.
+        """
+
+        hop_size = self.window_size * (1 - self.overlap_ratio)
         frame_duration = hop_size / self.fs
         offset_in_seconds = offset * frame_duration
+
         return offset_in_seconds

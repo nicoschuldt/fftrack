@@ -13,10 +13,16 @@
         "fingerprint_reduction": 20,
         "max_hash_time_delta": 200,
         "min_hash_time_delta": 0,
-        "peak_sort": true
+        "peak_sort": true,
+        "channels": 1,
+        "chunk_size": 1024
     },
     "matching": {
-
+        "top_n": 5,
+        "top_list": 1,
+        "match_count_benchmark": 3,
+        "confidence_calculator": 2,
+        "confidence_threshold": 30
     }
 
 

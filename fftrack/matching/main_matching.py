@@ -181,5 +181,6 @@ def main():
     # Clean up
     db_manager.close_session()
 
+
 if __name__ == "__main__":
     main()

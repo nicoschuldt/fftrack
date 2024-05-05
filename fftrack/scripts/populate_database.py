@@ -52,11 +52,9 @@ def download_song(youtube_url, download_path):
         out_file_mp3 = out_file.replace(".mp4", ".mp3")
         audio_clip.export(out_file_mp3, format="mp3")
 
-        # delete downloaded file
-
-
         logging.info(f"Downloaded and converted {youtube_url} to {out_file_mp3}")
         return out_file_mp3
+
     except Exception as e:
         logging.error(f"Error downloading and converting {youtube_url}: {e}")
         return None
@@ -69,7 +67,9 @@ def populate_database(csv_path, db, delete_existing=delete_existing, delete_down
     Args:
         csv_path (str): The path to the CSV file containing song information.
             CSV file should have columns: 'song_name', 'artist', 'album', 'release_date', 'youtube_link'.
-
+        db (db_manager object): The database manager object.
+        delete_existing (bool): If True, delete songs from the database.
+        delete_downloaded (bool): If True, delete the downloaded song file.
     Returns:
         None
     """
@@ -80,23 +80,38 @@ def populate_database(csv_path, db, delete_existing=delete_existing, delete_down
 
     df = pd.read_csv(csv_path)
     for _, row in df.iterrows():
-        song_path = download_song(row['youtube_link'], download_dir)
-        if song_path:
-            song_id = db.add_song(row['song_name'], row['artist'], row['album'], row['release_date'])
-            logging.info(f"Added song to database: ID {song_id}, {row['song_name']} by {row['artist']}")
+        if db.get_song_by_title_artist(row['song_name'], row['artist']) is None:
+            song_path = download_song(row['youtube_link'], download_dir)
+            if song_path:
+                # All rows are filled up
+                if type(row['album']) is not float and type(row['release_date']) is not float:
+                    song_id = db.add_song(row['song_name'], row['artist'], row['album'], row['release_date'])
 
-            # generate fingerprints
-            fingerprints = ap.generate_fingerprints_from_file(song_path)
-            logging.info(f"Generated {len(fingerprints)} fingerprints for song: {row['song_name']}")
-            # Add fingerprints to the database
-            logging.info(f"Adding fingerprints to the database for song: {row['song_name']}")
-            for fingerprint in fingerprints:
-                db.add_fingerprint(song_id, fingerprint[0], fingerprint[1])
-                logging.debug(f"Added fingerprint to database: {fingerprint}")
+                # Without an album
+                elif type(row['album']) is float and type(row['release_date']) is not float:
+                    song_id = db.add_song(row['song_name'], row['artist'], row['release_date'])
 
-            if delete_downloaded:
-                os.remove(song_path)
-                logging.info(f"Deleted downloaded song from folder: {song_path}")
+                # If there is no album/release date information, then add without it
+                else:
+                    song_id = db.add_song(row['song_name'], row['artist'], row['youtube_link'])
+
+                logging.info(f"Added song to database: ID {song_id}, {row['song_name']} by {row['artist']}")
+
+                # generate fingerprints
+                fingerprints = ap.generate_fingerprints_from_file(song_path)
+                logging.info(f"Generated {len(fingerprints)} fingerprints for song: {row['song_name']}")
+                # Add fingerprints to the database
+                logging.info(f"Adding fingerprints to the database for song: {row['song_name']}")
+                for fingerprint in fingerprints:
+                    db.add_fingerprint(song_id, fingerprint[0], fingerprint[1])
+                    logging.debug(f"Added fingerprint to database: {fingerprint}")
+
+                if delete_downloaded:
+                    os.remove(song_path)
+                    logging.info(f"Deleted downloaded song from folder: {song_path}")
+
+        else:
+            logging.info(f"Song {row['song_name']} by {row['artist']} already in the database.")
 
 
 def main():
