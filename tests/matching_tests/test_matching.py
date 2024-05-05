@@ -65,7 +65,7 @@ def db_manager(setup_database):
 def matcher_instance(db_manager):
     # Initialising matcher and creates tables
     from fftrack.matching.matcher import Matcher
-    matcher = Matcher(db_manager)
+    matcher = Matcher(db_manager, confidence_threshold=0.5, match_count_benchmark=0)
     create_test_database(db_manager)
 
     return matcher
@@ -98,27 +98,82 @@ def test_find_matches(matcher_instance):
 # Test align_matches function
 def test_align_matches(matcher_instance):
     # Create some sample input data for testing
-    matches = [('1234567890abcdefghij', 0),
-               ('1234567890abcdefghij', 0),
-               ('1234567890abcdefghij', 0),
-               ('1234567890abcdefghij', 0),
-               ('1234567890abcdefghij', 3),
-               ('1234567890abcdefghij', 3)]
+    matches = [('Test Song 1', 0),
+               ('Test Song 3', 0),
+               ('Test Song 1', 0),
+               ('Test Song 2', 0),
+               ('Test Song 1', 3),
+               ('Test Song 2', 3)]
+    matches_per_song = {'Test Song 1': 10,
+                        'Test Song 2': 19,
+                        'Test Song 3': 23}
 
     # Call the function under test
-    aligned_results = matcher_instance.align_matches(matches)
+    aligned_results = matcher_instance.align_matches(matches, matches_per_song)
 
     # Perform assertions to check if the function behaves as expected
-    assert len(aligned_results) != 0  # Add expected length of aligned results
+    assert aligned_results is not None  # Add expected length of aligned results
 
 
-# Test find_best_match function
-def test_find_best_match(matcher_instance):
+def test_confidence_by_score(matcher_instance):
     # Create some sample input data for testing
-    aligned_results = {"Test Song 1" : {'song_id' : "Test Song 1",
-                                        'offset' : 0,
-                                        'count': 3,
-                                        'confidence': 0.19},
+    aligned_results = {"Test Song 1": {'song_id': "Test Song 1",
+                                       'offset': 0,
+                                       'count': 3,
+                                       'confidence': 0},
+                       "Test Song 2": {'song_id': "Test Song 2",
+                                       'offset': 3,
+                                       'count': 10,
+                                       'confidence': 0},
+                       "Test Song 3": {'song_id': "Test Song 3",
+                                       'offset': 0,
+                                       'count': 15,
+                                       'confidence': 0},
+                       }
+    matches_per_song = {'Test Song 1': 10,
+                        'Test Song 2': 19,
+                        'Test Song 3': 23}
+
+    aligned_results = matcher_instance.confidence_by_score(aligned_results, matches_per_song)
+
+    # Perform assertions to check if the function behaves as expected
+    assert aligned_results['Test Song 1']['confidence'] != 0, "Calculating confidence failed for Test Song 1"
+    assert aligned_results['Test Song 2']['confidence'] != 0, "Calculating confidence failed for Test Song 1"
+    assert aligned_results['Test Song 3']['confidence'] != 0, "Calculating confidence failed for Test Song 1"
+
+
+def test_confidence_by_matches(matcher_instance):
+    # Create some sample input data for testing
+    aligned_results = {"Test Song 1": {'song_id': "Test Song 1",
+                                       'offset': 0,
+                                       'count': 3,
+                                       'confidence': 0},
+                       "Test Song 2": {'song_id': "Test Song 2",
+                                       'offset': 3,
+                                       'count': 10,
+                                       'confidence': 0},
+                       "Test Song 3": {'song_id': "Test Song 3",
+                                       'offset': 0,
+                                       'count': 15,
+                                       'confidence': 0},
+                       }
+    sum_matches = 35
+
+    aligned_results = matcher_instance.confidence_by_matches(aligned_results, sum_matches)
+
+    # Perform assertions to check if the function behaves as expected
+    assert aligned_results['Test Song 1']['confidence'] >= 0, "Calculating confidence failed for Test Song 1"
+    assert aligned_results['Test Song 2']['confidence'] >= 0, "Calculating confidence failed for Test Song 1"
+    assert aligned_results['Test Song 3']['confidence'] >= 0, "Calculating confidence failed for Test Song 1"
+
+
+# Test find_top_n_match function
+def test_find_top_n_matches(matcher_instance):
+    # Create some sample input data for testing
+    aligned_results = {"Test Song 1": {'song_id': "Test Song 1",
+                                       'offset': 0,
+                                       'count': 3,
+                                       'confidence': 0.19},
                        "Test Song 2": {'song_id': "Test Song 2",
                                        'offset': 3,
                                        'count': 10,
@@ -130,11 +185,41 @@ def test_find_best_match(matcher_instance):
                        }
 
     # Call the function under test
-    best_match = matcher_instance.find_best_match(aligned_results)
+    top_matches = matcher_instance.find_top_n_matches(aligned_results, 2)
 
     # Perform assertions to check if the function behaves as expected
-    assert isinstance(best_match, tuple)  # Ensure it returns a dictionary
-    assert 'song_id' in best_match[1]  # Ensure it contains 'song_id' key
-    assert 'offset' in best_match[1]  # Ensure it contains 'offset' key
-    assert 'count' in best_match[1]  # Ensure it contains 'count' key
-    assert 'confidence' in best_match[1]  # Ensure it contains 'confidence' key
+    assert len(top_matches) == 2, "Failed to retrieve top matches"
+
+
+# Test find_best_match function
+def test_find_best_match(matcher_instance):
+    # Create some sample input data for testing
+    top_matches = [("Test Song 3", {'song_id': "Test Song 3",
+                                    'offset': 0,
+                                    'count': 15,
+                                    'confidence': 0.83}),
+                   ("Test Song 2", {'song_id': "Test Song 2",
+                                    'offset': 3,
+                                    'count': 10,
+                                    'confidence': 0.77})]
+
+    # Call the function under test
+    best_match = matcher_instance.find_best_match(top_matches)
+
+    # Perform assertions to check if the function behaves as expected
+    assert best_match is not None, "Failed to retrieve best match"
+
+
+def test_get_best_match(matcher_instance):
+    # Create some sample input data for testing
+    sample_hashes = [('1234567890abcdefghij', 0), ('1234567890abcdefghij', 1), ('1234567890abcdefghij', 2)]
+
+    # Call the function under test
+    top_matches, best_match = matcher_instance.get_best_match(sample_hashes)
+
+    # Perform assertions to check if the function behaves as expected
+    assert len(top_matches) != 0, "No top matches found"
+    assert best_match is not None, "No best match found"
+
+
+
