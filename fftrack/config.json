@@ -1,29 +1,30 @@
 {
-    "database_url": "sqlite:///fftrack.db",
-    "listen_time": "5",
-    "plot": false,
-    "log_level": "INFO",
-    "audio": {
-        "rate": 44100,
-        "window_size": 4096,
-        "overlap_ratio": 0.5,
-        "fan_value": 15,
-        "amp_min": 10,
-        "peak_neighborhood_size": 20,
-        "fingerprint_reduction": 20,
-        "max_hash_time_delta": 200,
-        "min_hash_time_delta": 0,
-        "peak_sort": true,
-        "channels": 1,
-        "chunk_size": 1024
-    },
-    "matching": {
-        "top_n": 5,
-        "top_list": 1,
-        "match_count_benchmark": 3,
-        "confidence_calculator": 2,
-        "confidence_threshold": 30
-    }
-
-
+  "database_url": "sqlite:///fftrack.db",
+  "listen_time": "5",
+  "plot": false,
+  "log_level": "INFO",
+  "nb_threads": 8,
+  "audio": {
+    "rate": 44100,
+    "window_size": 4096,
+    "overlap_ratio": 0.5,
+    "fan_value": 15,
+    "amp_min": 10,
+    "peak_neighborhood_size": 20,
+    "fingerprint_reduction": 20,
+    "max_hash_time_delta": 200,
+    "min_hash_time_delta": 0,
+    "peak_sort": true,
+    "channels": 1,
+    "chunk_size": 1024
+  },
+  "matching": {
+    "top_n": 5,
+    "top_list_based_on": 2,
+    "match_count_benchmark": 5,
+    "confidence_calculator": 2,
+    "confidence_threshold": 30,
+    "confidence_difference": 10,
+    "count_difference": 5
+  }
 }

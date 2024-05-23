@@ -9,7 +9,6 @@ def main():
     print("Initializing the database...")
     create_database()
 
-
     # 2. Add new song to the database
     db_manager = DatabaseManager()
     print("Adding a new song...")
@@ -21,7 +20,6 @@ def main():
         print("Failed to add song.")
         return
 
-
     # 3 Add fingerprint to the song
     print("Adding a fingerprint to the song...")
     fingerprint_hash = '1234567890abcdefghij'
@@ -29,7 +27,6 @@ def main():
         print("Fingerprint added successfully.")
     else:
         print("Failed to add fingerprint.")
-
 
     # 4 Retrieve and display the song information based on the fingerprint
     print("Retrieving song information based on the id...")
@@ -39,7 +36,6 @@ def main():
     else:
         print("Failed to retrieve song.")
 
-
     # 5 Retrieve and display the fingerprint information based on the hash
     print("Retrieving fingerprint information based on the hash...")
     fingerprints = db_manager.get_fingerprint_by_hash(fingerprint_hash)
@@ -47,7 +43,6 @@ def main():
         print(f"Fingerprint found in the database: {fingerprints}")
     else:
         print("Fingerprint not found.")
-
 
     # Clean up
     # db_manager.close_session()

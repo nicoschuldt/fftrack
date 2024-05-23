@@ -1,7 +1,8 @@
-import pyaudio
 import wave
-import pydub
 from threading import Thread
+
+import pyaudio
+import pydub
 
 from fftrack import config as cfg
 
@@ -33,7 +34,6 @@ class AudioReader:
         self.stream = None  # Audio stream
         self.record_thread = None  # Thread for recording audio
 
-
     def record_audio(self):
         """
         Record an audio file from the user's microphone.
@@ -62,7 +62,6 @@ class AudioReader:
         self.stream.stop_stream()
         self.stream.close()
 
-
     def start_recording(self):
         """
         Start recording audio.
@@ -76,7 +75,6 @@ class AudioReader:
         self.record_thread = Thread(target=self.record_audio)
         self.record_thread.start()
 
-
     def stop_recording(self):
         """
         Stop the audio recording.
@@ -89,7 +87,6 @@ class AudioReader:
         self.is_recording = False
         if self.record_thread is not None:
             self.record_thread.join()
-
 
     def save_audio(self, frames):
         """
@@ -109,7 +106,6 @@ class AudioReader:
         wf.close()
         print('Audio saved as', self.output_filename)
 
-
     def audio_to_wav(self, filename):
         """
         Convert an audio file into .wav format.
@@ -121,4 +117,3 @@ class AudioReader:
         """
         sound = pydub.AudioSegment.from_file(filename)
         sound.export(self.output_filename, format='wav')
-

@@ -1,7 +1,7 @@
 # demo for how to use the matcher
-from .matcher import Matcher
 from fftrack.database.db_manager import DatabaseManager
 from fftrack.database.models import create_database
+from .matcher import Matcher
 
 
 # Initialise database and add songs and their fingerprints to it for testing
@@ -144,10 +144,10 @@ def main():
     # 2. Find matches for the sample match
     print("Creating list of possible matches according to hashes...")
     possible_matches, matches_per_song = match.find_matches([('be3e08e64b5e1442168d', 77),
-            ('060e923715797a050c3b', 79),
-            ('8e6e5474fac838a5a78c', 45),
-            ('be3e08e64b5e1442168d', 43),
-            ('228f2e4fe7d02b97790d', 12)])
+                                                             ('060e923715797a050c3b', 79),
+                                                             ('8e6e5474fac838a5a78c', 45),
+                                                             ('be3e08e64b5e1442168d', 43),
+                                                             ('228f2e4fe7d02b97790d', 12)])
 
     if possible_matches:
         print("Possible matches successfully retracted.")

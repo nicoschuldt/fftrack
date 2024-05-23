@@ -48,6 +48,8 @@ To configure FFTrack, run the following command in your terminal (not available 
 fftrack config
 ```
 
+
+
 [//]: # (## Contributing)
 
 [//]: # (If you want to contribute to this project, please follow these steps:)

@@ -14,7 +14,7 @@ SAMPLE_RATE = 44100  # Sample rate in Hz
 @pytest.fixture
 def audio_processor():
     """Fixture for creating an instance of the AudioProcessing class."""
-    return AudioProcessing(fs=SAMPLE_RATE)
+    return AudioProcessing(fs=SAMPLE_RATE, plot=False)
 
 
 @pytest.fixture

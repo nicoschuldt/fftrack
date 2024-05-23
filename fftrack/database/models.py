@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, Float, ForeignKey, UniqueConstraint, Index, Date
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, UniqueConstraint, Index, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 
@@ -12,9 +12,11 @@ class Song(Base):
     """
     __tablename__ = 'songs'
 
-    song_id = Column(Integer, primary_key=True)  # A unique identifier for the song.
+    # A unique identifier for the song.
+    song_id = Column(Integer, primary_key=True)
     title = Column(String, nullable=False)  # The title of the song.
-    artist = Column(String, nullable=False)  # The artist or band who performed the song.
+    # The artist or band who performed the song.
+    artist = Column(String, nullable=False)
     album = Column(String)  # The album on which the song appears.
     release_date = Column(Date, nullable=True)  # The release date of the song.
     youtube_link = Column(String)  # YouTube link of the song.
@@ -28,12 +30,15 @@ class Fingerprint(Base):
     """
     __tablename__ = 'fingerprints'
     __table_args__ = (
-        UniqueConstraint('song_id', 'offset', 'hash', name='_song_hash_offset_uc'),
+        UniqueConstraint('song_id', 'offset', 'hash',
+                         name='_song_hash_offset_uc'),
         Index('idx_song_hash', 'hash'),
     )
 
-    fingerprint_id = Column(Integer, primary_key=True)  # A unique identifier for the fingerprint.
-    song_id = Column(Integer, ForeignKey('songs.song_id'), nullable=False)  # The ID of the song this fingerprint belongs to.
+    # A unique identifier for the fingerprint.
+    fingerprint_id = Column(Integer, primary_key=True)
+    song_id = Column(Integer, ForeignKey('songs.song_id'),
+                     nullable=False)  # The ID of the song this fingerprint belongs to.
     # One fingerprint (hash and offset) of the song.
     hash = Column(String(20), nullable=False, index=True)
     offset = Column(Integer, nullable=False)

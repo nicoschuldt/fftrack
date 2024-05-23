@@ -65,7 +65,7 @@ def db_manager(setup_database):
 def matcher_instance(db_manager):
     # Initialising matcher and creates tables
     from fftrack.matching.matcher import Matcher
-    matcher = Matcher(db_manager, confidence_threshold=0.5, match_count_benchmark=0)
+    matcher = Matcher(db_manager, confidence_threshold=0, match_count_benchmark=0)
     create_test_database(db_manager)
 
     return matcher

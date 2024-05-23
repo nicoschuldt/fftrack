@@ -1,7 +1,5 @@
 import json
-
 import os
-import json
 
 DEFAULT_CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.json")
 
@@ -43,7 +41,8 @@ def save_config(config_data, config_file_path=DEFAULT_CONFIG_PATH):
 
 def create_user_config_file(user_config_file_path):
     """
-    Create a new user configuration file with default values. The user can edit this file to customize the configuration.
+    Create a new user configuration file with default values. The user can edit this file to customize the
+    configuration.
 
     Args:
         user_config_file_path (str): Path to the new configuration file.

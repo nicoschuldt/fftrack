@@ -5,7 +5,7 @@ with open('README.md', 'r') as f:
 
 setup(
     name='fftrack',
-    version='0.1.9',
+    version='0.2.0',
     description='FFTrack is a Python-based music recognition tool that allows users to identify songs from audio input.',
     long_description=long_description,
     long_description_content_type='text/markdown',

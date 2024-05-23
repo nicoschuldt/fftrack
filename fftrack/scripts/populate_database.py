@@ -1,16 +1,16 @@
 import argparse
-import os
 import logging
-from pytube import YouTube
 import os
-import logging
+
 import pandas as pd
-from pydub import AudioSegment
-from sqlalchemy.orm import sessionmaker
-from fftrack.database.models import Base, Song, create_database, engine
-from fftrack.database import DatabaseManager
-from fftrack.audio.audio_processing import AudioProcessing
 from pkg_resources import resource_filename
+from pydub import AudioSegment
+from pytube import YouTube
+from sqlalchemy.orm import sessionmaker
+
+from fftrack.audio.audio_processing import AudioProcessing
+from fftrack.database import DatabaseManager
+from fftrack.database.models import create_database, engine
 
 # Constant values
 DATABASE_URL = "sqlite:///fftrack.db"
@@ -20,7 +20,8 @@ delete_existing = False
 delete_downloaded = True
 
 # logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 def download_song(youtube_url, download_path):
@@ -43,7 +44,8 @@ def download_song(youtube_url, download_path):
         out_file = stream.download(output_path=download_path)
 
         # Log the selected stream details
-        logging.info(f"Selected stream: {stream.mime_type}, {stream.default_filename}")
+        logging.info(
+            f"Selected stream: {stream.mime_type}, {stream.default_filename}")
 
         # Load audio file
         audio_clip = AudioSegment.from_file(out_file, format="mp4")
@@ -52,7 +54,8 @@ def download_song(youtube_url, download_path):
         out_file_mp3 = out_file.replace(".mp4", ".mp3")
         audio_clip.export(out_file_mp3, format="mp3")
 
-        logging.info(f"Downloaded and converted {youtube_url} to {out_file_mp3}")
+        logging.info(
+            f"Downloaded and converted {youtube_url} to {out_file_mp3}")
         return out_file_mp3
 
     except Exception as e:
@@ -60,7 +63,7 @@ def download_song(youtube_url, download_path):
         return None
 
 
-def populate_database(csv_path, db, delete_existing=delete_existing, delete_downloaded=delete_downloaded):
+def populate_database(db, csv_path, delete_existing=delete_existing, delete_downloaded=delete_downloaded):
     """
     Populate the database with songs from a CSV file.
 
@@ -73,6 +76,14 @@ def populate_database(csv_path, db, delete_existing=delete_existing, delete_down
     Returns:
         None
     """
+
+    if not csv_path:
+        csv_path = csv_file_path
+
+    if not os.path.exists(csv_path):
+        logging.error(f"File not found: {csv_path}")
+        return
+
     ap = AudioProcessing(plot=False)
     # If delete_existing, delete all existing songs in the database
     if delete_existing:
@@ -85,41 +96,63 @@ def populate_database(csv_path, db, delete_existing=delete_existing, delete_down
             if song_path:
                 # All rows are filled up
                 if type(row['album']) is not float and type(row['release_date']) is not float:
-                    song_id = db.add_song(row['song_name'], row['artist'], row['album'], row['release_date'])
+                    song_id = db.add_song(
+                        row['song_name'], row['artist'], album=row['album'],
+                        release_date=row['release_date'], youtube_link=row['youtube_link'])
 
-                # Without an album
+                # Without an album with release date
                 elif type(row['album']) is float and type(row['release_date']) is not float:
-                    song_id = db.add_song(row['song_name'], row['artist'], row['release_date'])
+                    song_id = db.add_song(
+                        row['song_name'], row['artist'], release_date=row['release_date'], youtube_link=row['youtube_link'])
+
+                # Without a release date with album
+                elif type(row['release_date']) is float and type(row['album']) is not float:
+                    song_id = db.add_song(
+                        row['song_name'], row['artist'], release_date=row['album'], youtube_link=row['youtube_link'])
 
                 # If there is no album/release date information, then add without it
                 else:
-                    song_id = db.add_song(row['song_name'], row['artist'], row['youtube_link'])
+                    song_id = db.add_song(
+                        row['song_name'], row['artist'], youtube_link=row['youtube_link'])
 
-                logging.info(f"Added song to database: ID {song_id}, {row['song_name']} by {row['artist']}")
+                logging.info(
+                    f"Added song to database: ID {song_id}, {row['song_name']} by {row['artist']}")
 
                 # generate fingerprints
-                fingerprints = ap.generate_fingerprints_from_file(song_path)
-                logging.info(f"Generated {len(fingerprints)} fingerprints for song: {row['song_name']}")
+                fingerprints = ap.generate_fingerprints_from_file_threads(song_path)
+                logging.info(
+                    f"Generated {len(fingerprints)} fingerprints for song: {row['song_name']}")
                 # Add fingerprints to the database
-                logging.info(f"Adding fingerprints to the database for song: {row['song_name']}")
-                for fingerprint in fingerprints:
-                    db.add_fingerprint(song_id, fingerprint[0], fingerprint[1])
-                    logging.debug(f"Added fingerprint to database: {fingerprint}")
+                logging.info(
+                    f"Adding fingerprints to the database for song: {row['song_name']}")
+                if db.add_fingerprints_bulk(song_id, fingerprints):
+                    logging.info(
+                        f"Fingerprints added to the database for song: {row['song_name']}")
+                else:
+                    logging.error(
+                        f"Failed to add fingerprints to the database for song: {row['song_name']}")
 
                 if delete_downloaded:
                     os.remove(song_path)
-                    logging.info(f"Deleted downloaded song from folder: {song_path}")
+                    logging.info(
+                        f"Deleted downloaded song from folder: {song_path}")
 
         else:
-            logging.info(f"Song {row['song_name']} by {row['artist']} already in the database.")
+            logging.info(
+                f"Song {row['song_name']} by {row['artist']} already in the database.")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Populate the database with songs from a CSV file.")
-    parser.add_argument("--csv-path", type=str, help="Path to the CSV file containing song information.", default=csv_file_path)
-    parser.add_argument("--download-dir", type=str, help="Directory where to save the downloaded songs.", default=download_dir)
-    parser.add_argument("--delete-existing", action="store_true", help="Delete existing songs in the database.")
-    parser.add_argument("--delete-downloaded", action="store_true", help="Delete downloaded songs after adding to the database.")
+    parser = argparse.ArgumentParser(
+        description="Populate the database with songs from a CSV file.")
+    parser.add_argument("--csv-path", type=str, help="Path to the CSV file containing song information.",
+                        default=csv_file_path)
+    parser.add_argument("--download-dir", type=str, help="Directory where to save the downloaded songs.",
+                        default=download_dir)
+    parser.add_argument("--delete-existing", action="store_true",
+                        help="Delete existing songs in the database.")
+    parser.add_argument("--delete-downloaded", action="store_true",
+                        help="Delete downloaded songs after adding to the database.")
     args = parser.parse_args()
 
     # Ensure download directory exists
@@ -138,7 +171,8 @@ def main():
         logging.info("Deleting existing records from the database.")
         db_manager.reset_database()
 
-    populate_database(args.csv_path, db_manager, args.delete_existing, args.delete_downloaded)
+    populate_database(db_manager, args.csv_path,
+                      args.delete_existing, True)
     session.close()
     logging.info("Database population complete.")
 

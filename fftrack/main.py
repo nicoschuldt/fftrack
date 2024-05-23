@@ -1,21 +1,20 @@
-import typer
-import os
-import json
 import time
 
-from .config import *
-from .database.db_manager import DatabaseManager
+import typer
+
 from .audio.audio_processing import AudioProcessing
 from .audio.audio_reader import AudioReader
+from .config import *
+from .database.db_manager import DatabaseManager
 from .matching.matcher import Matcher
-from .scripts.populate_database import download_song
+from .scripts.populate_database import download_song, populate_database as pp_db
+from .ui import cli
 
 app = typer.Typer()
 audio_reader = AudioReader()
 audio_processor = AudioProcessing(plot=False)
 db = DatabaseManager()
 matcher = Matcher(db)
-
 
 # config
 config = load_config()
@@ -59,7 +58,6 @@ def menu():
         menu()
 
 
-
 @app.command(help="Listen for a song using the microphone and identify it.")
 def listen():
     """
@@ -68,10 +66,16 @@ def listen():
     Returns:
         None
     """
+    listen_time = cli.input_listen_time()
+    if listen_time is None:
+        typer.echo("Invalid response, default time is set.")
+        listen_time = int(LISTEN_TIME)
+
+    # Record audio
     try:
-        typer.echo(f"Listening for {LISTEN_TIME}s...")
+        typer.echo(f"Listening for {listen_time}s...")
         audio_reader.start_recording()
-        time.sleep(LISTEN_TIME)
+        time.sleep(listen_time)
         audio_reader.stop_recording()
         typer.echo("Audio recording complete.")
     except Exception as e:
@@ -82,7 +86,8 @@ def listen():
     # Process the audio file
     try:
         typer.echo("Processing audio...")
-        fingerprints = audio_processor.generate_fingerprints_from_file(audio_reader.output_filename)
+        fingerprints = audio_processor.generate_fingerprints_from_file_threads(
+            audio_reader.output_filename)
         typer.echo(f"Generated {len(fingerprints)} fingerprints successfully.")
     except Exception as e:
         typer.echo(f"Error processing audio: {e}")
@@ -94,7 +99,16 @@ def listen():
         top_matches, best_match = matcher.get_best_match(fingerprints)
         if best_match:
             song_id, match_details = best_match
-            typer.echo(f"Best match: Song ID {song_id}, Match details: {match_details}")
+            match = db.get_song_by_id(song_id)
+            cli.display_best_match(best_match, db)
+
+            typer.echo("Would you like to see the top hits list (y/n) ?")
+            answer = input()
+            while answer not in ['y', 'Y', 'n', 'N', '']:
+                typer.echo("Invalid response, try again.")
+                answer = input()
+            if answer in ['y', 'Y']:
+                cli.display_top_matches(top_matches, db)
         else:
             typer.echo("No match found.")
     except Exception as e:
@@ -124,7 +138,8 @@ def identify(file_path: str):
     # Process the audio file
     try:
         typer.echo("Processing audio...")
-        fingerprints = audio_processor.generate_fingerprints_from_file(audio_reader.output_filename)
+        fingerprints = audio_processor.generate_fingerprints_from_file(
+            audio_reader.output_filename)
         typer.echo(f"Generated {len(fingerprints)} fingerprints successfully.")
     except Exception as e:
         typer.echo(f"Error processing audio: {e}")
@@ -133,13 +148,20 @@ def identify(file_path: str):
     try:
         # Match the audio file against the database
         typer.echo("Matching audio...")
-        best_match = matcher.get_best_match(fingerprints)
+        top_matches, best_match = matcher.get_best_match(fingerprints)
         if best_match:
+            # display_best_match(best_match)
+            # display_top_matches(top_matches)
             song_id, match_details = best_match
-            typer.echo(f"Best match: Song ID {song_id}, Match details: {match_details}")
+            match = db.get_song_by_id(song_id)
+            typer.echo(f"Match found: {match.title} by {match.artist}")
+            typer.echo(
+                f"Offset: {match_details['offset']}"
+                f"({audio_processor.offset_to_seconds(match_details['offset'])}s)")
+            typer.echo(f"Confidence: {match_details['confidence']:.2f}")
             # get song details
-            song = db.get_song_by_id(song_id)
-            typer.echo(f"Song details: {song}")
+            # song = db.get_song_by_id(song_id)
+            # typer.echo(f"Song details: {song}")
         else:
             typer.echo("No match found.")
     except Exception as e:
@@ -193,8 +215,7 @@ def add_song(song_path: str = typer.Option(None, help="Path to the local audio f
     typer.echo(f"Generated {len(fingerprints)} fingerprints.")
 
     # Add fingerprints to the database
-    for hash, offset in fingerprints:
-        db.add_fingerprint(song_id, hash, offset)
+    db.add_fingerprints_bulk(song_id, fingerprints)
 
     typer.echo(f"Song and fingerprints added to the database.")
 
@@ -236,9 +257,34 @@ def list_songs():
 
         typer.echo("Songs in the database:")
         for song in songs:
-            typer.echo(f"ID: {song.song_id}, Title: '{song.title}', Artist: '{song.artist}', Album: '{song.album}', Release Date: '{song.release_date}'")
+            typer.echo(
+                f"ID: {song.song_id}, Title: '{song.title}', Artist: '{song.artist}', Album: '{song.album}', Release Date: '{song.release_date}'")
     except Exception as e:
         typer.echo(f"Failed to retrieve songs: {e}")
+
+
+@app.command("populate-database", help="Reset the database.")
+def populate_database(csv_path: str = typer.Option(None, help="Path to the CSV file")):
+    """
+    Populate the database with songs from a CSV file.
+
+    Args:
+        csv_path (str): Path to the CSV file containing song information.
+
+    Returns:
+        None
+    """
+
+    try:
+        if not csv_path:
+            pp_db(db)
+        else:
+            pp_db(db, csv_path=csv_path)
+        typer.echo("Database populated successfully.")
+    except Exception as e:
+        typer.echo(f"Failed to populate database: {e}")
+        return
+
 
 
 # config

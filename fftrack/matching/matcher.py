@@ -19,14 +19,17 @@ logging.basicConfig(level=LOG_LEVEL, format='%(asctime)s - %(levelname)s - %(mes
 
 # Constants for matching
 TOP_N = config["matching"]["top_n"]  # Number of top matches to return
-TOP_LIST = config["matching"]["top_list"]  # List is constructed by; 0: number of matches, 1: confidence level
-MATCH_COUNT_BENCHMARK = config["matching"]["match_count_benchmark"]  # Minimum number of fingerprint matches needed to count as a match
+TOP_LIST_BASED_ON = config["matching"]["top_list_based_on"]  # List is constructed by; 0: number of matches, 1: confidence level, 2: mix of the two
+MATCH_COUNT_BENCHMARK = config["matching"][
+    "match_count_benchmark"]  # Minimum number of fingerprint matches needed to count as a match
 # Choose the confidence calculator
 # 0: dividing with the length of offsets,
 # 1: dividing with the sum of all matches,
 # 2: counting score
 CONFIDENCE_CALCULATOR = config["matching"]["confidence_calculator"]
 CONFIDENCE_THRESHOLD = config["matching"]["confidence_threshold"]  # Confidence threshold for a match; for calculator 0 and 1: <1, for 2: >1
+CONFIDENCE_DIFFERENCE = config["matching"]["confidence_difference"]  # if a potential match has less matches but is more confident than the one above it, by confidence_diff
+COUNT_DIFFERENCE = config["matching"]["count_difference"]  # if a potential match is less confident, but has count_diff more matches than the one above it
 
 
 class Matcher:
@@ -34,8 +37,10 @@ class Matcher:
     Matches the fingerprint of the query with the fingerprints of the database.
     """
 
-    def __init__(self, database_manager, plot=PLOT, top_n=TOP_N, top_list=TOP_LIST, confidence_threshold=CONFIDENCE_THRESHOLD,
-                 match_count_benchmark=MATCH_COUNT_BENCHMARK, confidence_calculator=CONFIDENCE_CALCULATOR):
+    def __init__(self, database_manager, plot=PLOT, top_n=TOP_N, top_list=TOP_LIST_BASED_ON,
+                 confidence_threshold=CONFIDENCE_THRESHOLD, match_count_benchmark=MATCH_COUNT_BENCHMARK,
+                 confidence_calculator=CONFIDENCE_CALCULATOR, confidence_difference=CONFIDENCE_DIFFERENCE,
+                 count_difference=COUNT_DIFFERENCE):
         """
         Initialises the matcher with the database manager.
         """
@@ -47,6 +52,8 @@ class Matcher:
         self.confidence_threshold = confidence_threshold
         self.match_count_benchmark = match_count_benchmark
         self.confidence_calculator = confidence_calculator
+        self.confidence_difference = confidence_difference
+        self.count_difference = count_difference
 
     def get_best_match(self, sample_fingerprint):
         """
@@ -63,17 +70,17 @@ class Matcher:
         hash_matches, matches_per_song = self.find_matches(sample_fingerprint)
 
         # Align the matches to find the most probable song match
-        aligned_results = self.align_matches(hash_matches, matches_per_song)
+        try:
+            aligned_results = self.align_matches(hash_matches, matches_per_song)
 
-        # Find the best match based on the highest count (confidence)
-        if aligned_results:
+            # Find the best match based on the highest count (confidence)
             top_matches = self.find_top_n_matches(aligned_results, self.top_n)
             best_match = self.find_best_match(top_matches)
             return top_matches, best_match
-        else:
+
+        except TypeError:
             logging.info("No matches found, the song is not in the database.")
             return None, None
-
 
     def find_matches(self, sample_hashes):
         """
@@ -84,7 +91,6 @@ class Matcher:
         Returns:
             possible_matches (list): A list of tuples of the match results, in the form of (song_id, offset_difference)
             matches_per_song (dict): A dictionary of the song IDs, and the number of matches each song has
-
         """
 
         logging.info(f"Matching {len(sample_hashes)} fingerprints with the database.")
@@ -138,7 +144,8 @@ class Matcher:
 
         for sid, offsets in offset_by_song.items():
             # Find the most common offset and its count (only if it is over the benchmark)
-            offset_counts = Counter({freq: count for freq, count in Counter(offsets).items() if count >= self.match_count_benchmark})
+            offset_counts = Counter(
+                {freq: count for freq, count in Counter(offsets).items() if count >= self.match_count_benchmark})
 
             if offset_counts:
                 most_common_offset, count = offset_counts.most_common(1)[0]
@@ -156,8 +163,6 @@ class Matcher:
             aligned_results = self.confidence_by_matches(aligned_results, sum_matches)
         elif self.confidence_calculator == 2:
             aligned_results = self.confidence_by_score(aligned_results, matches_per_song)
-
-        aligned_results = {sid: info for sid, info in aligned_results.items() if info['confidence'] > self.confidence_threshold}
 
         if self.plot:
             self.plot_distribution(offset_by_song)
@@ -180,7 +185,6 @@ class Matcher:
         plt.legend()
         plt.show()
 
-
     def confidence_by_score(self, aligned_results, matches_per_song):
         """
         Calculates how confident the algorithm is in the correctness of the match,
@@ -192,7 +196,7 @@ class Matcher:
         Returns:
             aligned_result: Updated results.
         """
-
+        songs_under_benchmark = []
         for sid, info in aligned_results.items():
             most_common_offset = info["offset"]
             count = info["count"]
@@ -200,11 +204,18 @@ class Matcher:
             info["confidence"] = matches_per_song[sid]
             confidence = info["confidence"]
 
-            logging.info(f"Song ID: {sid}, "
-                         f"Most Common Offset: {most_common_offset} "
-                         f"({self.audio_processor.offset_to_seconds(most_common_offset)}s, "
-                         f"Matches: {count}, "
-                         f"Confidence: {confidence:.2f}")
+            if confidence <= self.confidence_threshold:
+                songs_under_benchmark.append(sid)
+
+            if sid not in songs_under_benchmark:
+                logging.info(f"Song ID: {sid}, "
+                             f"Most Common Offset: {most_common_offset} "
+                             f"({self.audio_processor.offset_to_seconds(most_common_offset)}s, "
+                             f"Matches: {count}, "
+                             f"Confidence: {confidence:.2f}")
+
+        for sid in songs_under_benchmark:
+            del aligned_results[sid]
 
         return aligned_results
 
@@ -218,18 +229,25 @@ class Matcher:
         Returns:
             confidence (float): Percentage of confidence in the match, which is the ratio of song matches to total matches.
         """
-
+        songs_under_benchmark = []
         for sid, info in aligned_results.items():
             most_common_offset = info["offset"]
             count = info["count"]
             info["confidence"] = count / sum_matches
             confidence = info["confidence"]
 
-            logging.info(f"Song ID: {sid}, "
-                         f"Most Common Offset: {most_common_offset} "
-                         f"({self.audio_processor.offset_to_seconds(most_common_offset)}s, "
-                         f"Matches: {count}, "
-                         f"Confidence: {confidence:.2f}")
+            if confidence <= self.confidence_threshold:
+                songs_under_benchmark.append(sid)
+
+            if sid not in songs_under_benchmark:
+                logging.info(f"Song ID: {sid}, "
+                             f"Most Common Offset: {most_common_offset} "
+                             f"({self.audio_processor.offset_to_seconds(most_common_offset)}s, "
+                             f"Matches: {count}, "
+                             f"Confidence: {confidence:.2f}")
+
+        for sid in songs_under_benchmark:
+            del aligned_results[sid]
 
         return aligned_results
 
@@ -255,12 +273,47 @@ class Matcher:
         # Sort and add top matches to a list
         if self.top_list == 0:
             sorted_matches = sorted(aligned_results.items(), key=lambda x: x[1]['count'], reverse=True)
-        else:
+        elif self.top_list == 1:
             sorted_matches = sorted(aligned_results.items(), key=lambda x: x[1]['confidence'], reverse=True)
+        else:
+            sorted_matches = self.sort_by_matches_and_confidence(aligned_results)
 
         top_matches = sorted_matches[:top]
 
         return top_matches
+
+    def sort_by_matches_and_confidence(self, aligned_results):
+        """
+        Sort aligned matches taking into account their number as well as their confidence.
+
+        Args:
+            aligned_results (dict): A dictionary of aligned match results for each song {sid: {sid, offset, count(nb of matches), confidence}}.
+        """
+        sort_by_count = sorted(aligned_results.items(), key=lambda x: x[1]['count'], reverse=True)
+
+        final_list = self.bubble_sort_matches(sort_by_count)
+
+        return final_list
+
+    def bubble_sort_matches(self, sorted_matches):
+        n = len(sorted_matches)
+
+        for i in range(n):
+            swapped = False
+
+            # Last i elements are already in place
+            for j in range(0, n - i - 1):
+                if sorted_matches[j][1]['confidence'] + self.confidence_difference < sorted_matches[j + 1][1]['confidence']\
+                        or (sorted_matches[j][1]['confidence'] < sorted_matches[j + 1][1]['confidence']
+                            and sorted_matches[j][1]['count'] == sorted_matches[j + 1][1]['count'])\
+                        or (sorted_matches[j][1]['confidence'] > sorted_matches[j + 1][1]['confidence']
+                            and sorted_matches[j][1]['count'] + self.count_difference < sorted_matches[j + 1][1]['count']):
+                    sorted_matches[j], sorted_matches[j + 1] = sorted_matches[j + 1], sorted_matches[j]
+                    swapped = True
+            if not swapped:
+                break
+
+        return sorted_matches
 
     def find_best_match(self, top_matches):
         """

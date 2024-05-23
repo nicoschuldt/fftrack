@@ -1,15 +1,8 @@
 import argparse
-import hashlib
 import logging
 from collections import defaultdict, Counter
 
-import librosa
-import matplotlib.colors as colors
 import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.mlab import window_hanning, specgram
-from pydub import AudioSegment
-from scipy.ndimage import maximum_filter, binary_erosion, generate_binary_structure, iterate_structure
 
 from fftrack.audio.audio_processing import AudioProcessing
 from fftrack.database.db_manager import DatabaseManager
@@ -31,11 +24,13 @@ PEAK_SORT = True  # Whether to sort peaks for hashing
 CONFIDENCE_THRESHOLD = 0.5  # Confidence threshold for a match
 
 # Flags for plotting and logging
-PLOT = False
+PLOT = True
 LOG_INFO = True
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 def find_matches(sample_hashes, plot=False):
     results, hashes_no_dupl = [], defaultdict(int)
@@ -45,14 +40,14 @@ def find_matches(sample_hashes, plot=False):
         for song_id, db_offset in matching_fingerprints:
             # Ensure both offsets are integers
             db_offset = int(db_offset)
-            offset = int(offset)  # This should already be an integer, but just to be safe
+            # This should already be an integer, but just to be safe
+            offset = int(offset)
 
             offset_difference = db_offset - offset
             results.append((song_id, offset_difference))
             hashes_no_dupl[song_id] += 1
 
     return results, hashes_no_dupl
-
 
 
 def align_matches(matches):
@@ -116,18 +111,22 @@ def find_best_match(aligned_results):
     best_match = max(aligned_results.items(), key=lambda x: x[1]["count"])
     return best_match
 
+
 def parse_arguments():
     """Parse command line arguments for song file paths."""
-    parser = argparse.ArgumentParser(description='Compare two songs and determine if they are the same.')
+    parser = argparse.ArgumentParser(
+        description='Compare two songs and determine if they are the same.')
     parser.add_argument('song1', type=str, help='Path to the first song file.')
-    parser.add_argument('song2', type=str, help='Path to the second song file.')
+    parser.add_argument('song2', type=str,
+                        help='Path to the second song file.')
     return parser.parse_args()
 
 
 def main():
     audio_processor = AudioProcessing(plot=False)
     # Setup logging
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
 
     # Parse arguments
     args = parse_arguments()
@@ -147,7 +146,8 @@ def main():
     db_fingerprints = {"song1": fingerprints1}
 
     # Find matches between the second song and the database
-    matches, hashes_no_dupl = find_matches(fingerprints2, db_fingerprints, plot=PLOT)
+    matches, hashes_no_dupl = find_matches(
+        fingerprints2, db_fingerprints, plot=PLOT)
 
     # Align matches and find the best match
     aligned_results = align_matches(matches)
@@ -159,7 +159,8 @@ def main():
     # Print the conclusion and relevant data
     logging.info(f"The songs are {song_match}.")
     logging.info(f"Song ID: {best_match_sid}")
-    logging.info(f"Offset in s: {audio_processor.offset_to_seconds(best_match_details['offset'])}")
+    logging.info(
+        f"Offset in s: {audio_processor.offset_to_seconds(best_match_details['offset'])}")
     logging.info(f"Confidence: {best_match_details['confidence']:.2f}")
 
 
@@ -169,22 +170,22 @@ def main():
 # Example usage with an audio file
 if __name__ == "__main__":
 
-    audio_processor = AudioProcessing(plot=False)  # Enable plotting for demonstration
-
+    # Enable plotting for demonstration
+    audio_processor = AudioProcessing(plot=True)
 
     # initialize database
     create_database()
 
     dbm = DatabaseManager()
 
-    print("Adding a new song...")
-    song_id_studio = dbm.add_song("Crazy Little Thing Called Love - Studio", "Queen",
-                                  "A Night at the Opera", "1975-10-31")
-    print(f"Added song with ID: {song_id_studio}")
-
-    song_id_live = dbm.add_song("Crazy Little Thing Called Love - Live", "Queen",
-                                "A Night at the Opera", "1975-10-31")
-    print(f"Added song with ID: {song_id_live}")
+    # print("Adding a new song...")
+    # song_id_studio = dbm.add_song("Crazy Little Thing Called Love - Studio", "Queen",
+    #                               "A Night at the Opera", "1975-10-31")
+    # print(f"Added song with ID: {song_id_studio}")
+    #
+    # song_id_live = dbm.add_song("Crazy Little Thing Called Love - Live", "Queen",
+    #                             "A Night at the Opera", "1975-10-31")
+    # print(f"Added song with ID: {song_id_live}")
 
     file_path1 = "/Users/nicolas/Developer/workspace/Uni/L2/S4/Projet/SONGS/crazy-little-thing.mp3"
     file_path2 = "/Users/nicolas/Developer/workspace/Uni/L2/S4/Projet/SONGS/crazy-little-thing-LIVE.mp3"
@@ -208,25 +209,28 @@ if __name__ == "__main__":
     # fingerprints3 = fingerprint(samples3)
 
     # Generate fingerprints
-    fingerprints1 = audio_processor.generate_fingerprints_from_samples(samples1)
-    fingerprints2 = audio_processor.generate_fingerprints_from_samples(samples2)
-    fingerprints3 = audio_processor.generate_fingerprints_from_samples(samples3)
-
+    fingerprints1 = audio_processor.generate_fingerprints_from_samples(
+        samples1)
+    fingerprints2 = audio_processor.generate_fingerprints_from_samples_threads(
+        samples2)
+    fingerprints3 = audio_processor.generate_fingerprints_from_samples_threads(
+        samples3)
 
     if PLOT:
         plt.figure(figsize=(15, 7))
-        plt.bar(["Studio", "Cropped", "Live"], [len(fingerprints1), len(fingerprints3), len(fingerprints2)])
+        plt.bar(["Studio", "Cropped", "Live"], [
+                len(fingerprints1), len(fingerprints3), len(fingerprints2)])
         plt.title('Number of Fingerprints')
         plt.xlabel('Sample')
         plt.ylabel('Number of Fingerprints')
         plt.show()
 
-    # add fingerprints to database
-    for fingerprint in fingerprints1:
-        dbm.add_fingerprint(song_id_studio, fingerprint[0], fingerprint[1])
-
-    for fingerprint in fingerprints2:
-        dbm.add_fingerprint(song_id_live, fingerprint[0], fingerprint[1])
+    # # add fingerprints to database
+    # for fingerprint in fingerprints1:
+    #     dbm.add_fingerprint(song_id_studio, fingerprint[0], fingerprint[1])
+    #
+    # for fingerprint in fingerprints2:
+    #     dbm.add_fingerprint(song_id_live, fingerprint[0], fingerprint[1])
 
     # Find matches
     matches, hashes_no_dupl = find_matches(fingerprints3, plot=PLOT)
@@ -239,7 +243,8 @@ if __name__ == "__main__":
     match_found = best_match_details["confidence"] > CONFIDENCE_THRESHOLD
     if match_found:
         print(f"Match found!: {best_match_sid}")
-        print(f"Offset: {best_match_details['offset']} ({audio_processor.offset_to_seconds(best_match_details['offset'])}s)")
+        print(
+            f"Offset: {best_match_details['offset']} ({audio_processor.offset_to_seconds(best_match_details['offset'])}s)")
         print(f"Confidence: {best_match_details['confidence']:.2f}")
     else:
         print("No match found.")
