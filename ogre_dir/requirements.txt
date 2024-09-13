@@ -1,0 +1,16 @@
+pytube
+scipy
+pydub
+numpy
+matplotlib
+sqlalchemy
+setuptools
+soundfile
+typer
+librosa
+rich
+argparse
+pandas
+pytest
+wave
+pyaudio
